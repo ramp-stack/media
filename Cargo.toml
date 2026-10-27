@@ -1,0 +1,19 @@
+[package]
+name = "media2"
+version = "0.1.0"
+edition = "2024"
+authors = ["Caleb Couch <caleb@orange.me>"]
+description = "Owned audio, video, image, and playback primitives"
+license = "BSD-3-Clause"
+repository = "https://github.com/ramp-stack/media"
+readme = "README.md"
+include = ["Cargo.toml", "README.md", "src/*.rs"]
+
+[dependencies]
+bytemuck = {version = "1.23", features = ["derive"]}
+image = {version = "0.24.9", default-features = false, features = [
+    "png", "jpeg", "webp", "gif", "bmp", "ico", "tiff", "qoi",
+]}
+ffmpeg-next = {package = "ramp-ffmpeg", version = "9.0.4", default-features = false, features = [
+    "codec", "format", "software-scaling", "software-resampling", "build-portable",
+]}
