@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::media::{Clip, CursorRead, Export, Join, Timeline, Track};
-use crate::{Cursor, Encoder, Format, Media, Player, Video};
+use crate::{Cursor, Encoder, Format, Frames, Media, Player, Video};
 
 /// One channel's PCM amplitude, conventionally between -1.0 and 1.0.
 #[repr(transparent)]
@@ -78,7 +78,7 @@ impl Audio {
     /// Immutable sample-aligned chunks, shortened at gaps or changes in corruption state.
     /// Damage up to 2 ms is interpolated between healthy neighbors; other damage produces silence.
     /// Repaired portions remain flagged. Edits require a new range request.
-    pub fn frames(&self, range: Range<Duration>, duration: Duration) -> Arc<Vec<Arc<AudioFrame>>> {
+    pub fn frames(&self, range: Range<Duration>, duration: Duration) -> Frames<AudioFrame> {
         self.cursor().audio_frames(range, duration)
     }
     pub fn encode(&self, format: Format) -> Result<Encoder, String> {

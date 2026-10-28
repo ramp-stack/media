@@ -187,8 +187,7 @@ impl Decoder {
         Ok(())
     }
     fn matroska(&mut self, segment: &mut bool, initialized: &mut bool, finished: bool) -> Result<(), String> {
-        loop {
-            let Some((id, header, length)) = Self::element(&self.pending)? else {break};
+        while let Some((id, header, length)) = Self::element(&self.pending)? {
             if id == 0x18538067 && !*segment {
                 let mut bytes: Vec<_> = self.pending.drain(..header).collect();
                 let width = header - 4;
@@ -219,7 +218,7 @@ impl Decoder {
                     if end > self.pending.len() {break}
                     cursor = end;
                 }
-                if !complete && !(finished && cursor == self.pending.len()) {break}
+                if !(complete || finished && cursor == self.pending.len()) {break}
                 cursor
             } else {return Err("Unsupported unknown Matroska element length".into())};
             if id == 0x1f43b675 {
@@ -294,7 +293,7 @@ impl Decoder {
                 *remaining = (length != 0).then_some(if length == u32::MAX as usize {
                     u64::MAX
                 } else {length as u64});
-                *padding = length != u32::MAX as usize && length % 2 != 0;
+                *padding = length != u32::MAX as usize && !length.is_multiple_of(2);
                 continue
             }
             let size = 8 + length + length % 2;
@@ -963,8 +962,8 @@ enum Container {
 }
 impl Drop for Container {
     fn drop(&mut self) {
-        if let Self::Flac {parser, ..} = self {
-            if !parser.is_null() {unsafe {ffmpeg::ffi::av_parser_close(*parser)};}
+        if let Self::Flac {parser, ..} = self && !parser.is_null() {
+            unsafe {ffmpeg::ffi::av_parser_close(*parser);}
         }
     }
 }

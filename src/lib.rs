@@ -24,6 +24,8 @@ pub use encoder::{Encoder, Format};
 mod player;
 pub use player::{Frame, PlaybackMode, Player};
 
+pub type Frames<F> = Arc<Vec<Arc<F>>>;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Tracks {Audio, Video, Both}
 
@@ -171,7 +173,7 @@ impl Media {
         audio.remove(range.clone(), instant, Audio::span);
         video.remove(range, instant, Video::span);
     }
-    pub fn frames(&self, range: Range<Duration>, duration: Duration) -> (Arc<Vec<Arc<AudioFrame>>>, Arc<Vec<Arc<VideoFrame>>>) {
+    pub fn frames(&self, range: Range<Duration>, duration: Duration) -> (Frames<AudioFrame>, Frames<VideoFrame>) {
         let mut cursor = self.cursor();
         (cursor.audio_frames(range.clone(), duration), cursor.video_frames(range))
     }

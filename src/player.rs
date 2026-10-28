@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::media::CursorRead;
-use crate::{AudioFrame, Cursor, FrameDecoder, Sample, Sound, VideoFrame};
+use crate::{AudioFrame, Cursor, FrameDecoder, Frames, Sample, Sound, VideoFrame};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum PlaybackMode {#[default] Default, Live(Duration), Loop}
@@ -24,8 +24,8 @@ pub struct Frame {
 /// An owned player. The clock advances independently of how often frame() is called.
 pub struct Player {
     cursor: Cursor,
-    audio_frames: Arc<Vec<Arc<AudioFrame>>>,
-    video_frames: Arc<Vec<Arc<VideoFrame>>>,
+    audio_frames: Frames<AudioFrame>,
+    video_frames: Frames<VideoFrame>,
     audio_range: Range<Duration>,
     video_range: Range<Duration>,
     revisions: (u64, u64),

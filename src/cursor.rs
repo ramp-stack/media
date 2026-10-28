@@ -7,7 +7,9 @@ use std::time::{Duration, Instant};
 
 use crate::decoder::{DecodeError, FrameDecoder};
 use crate::media::{Cache, Clip, Content, CursorRead, Playhead, Timeline, Track};
-use crate::{Audio, AudioFrame, Image, Media, Pixel, Sample, Sound, Video, VideoFrame};
+use crate::{Audio, AudioFrame, Frames, Image, Media, Pixel, Sample, Sound, Video, VideoFrame};
+
+type FrameRead<'a> = (Range<f64>, &'a Clip, Option<Range<f64>>);
 
 /// Independent decoder state over live editable tracks. Cloning a track creates a separate edit branch;
 /// creating another cursor on the same track shares edits and the bounded decoded-frame cache.
@@ -35,7 +37,7 @@ impl Cursor {
         if playhead.started.is_some() {playhead.started = Some(Instant::now());}
     }
     /// Read samples starting at the current position without advancing it.
-    pub fn audio(&mut self, duration: Duration) -> Arc<Vec<Arc<AudioFrame>>> {
+    pub fn audio(&mut self, duration: Duration) -> Frames<AudioFrame> {
         loop {
             let head = self.playhead();
             let (position, rebased) = (head.time(Instant::now()), head.rebased);
@@ -101,7 +103,7 @@ impl Cursor {
             audio_position: None, video_position: None, audio_pending: None, video_pending: None,
         }
     }
-    fn audio_window(&mut self, clips: &[Clip], cache: &mut Cache<AudioFrame>, range: Range<Duration>) -> Arc<Vec<Arc<AudioFrame>>> {
+    fn audio_window(&mut self, clips: &[Clip], cache: &mut Cache<AudioFrame>, range: Range<Duration>) -> Frames<AudioFrame> {
         if let Some(frames) = cache.block(&range) {return frames}
         if let Some(frames) = cache.cover(&range, |frame| {
             frame.timestamp..frame.timestamp + frame.duration
@@ -134,7 +136,7 @@ impl Cursor {
         cache.cache_block(range, frames.clone(), bytes);
         frames
     }
-    fn video_window(&mut self, clips: &[Clip], cache: &mut Cache<VideoFrame>, range: Range<Duration>) -> Arc<Vec<Arc<VideoFrame>>> {
+    fn video_window(&mut self, clips: &[Clip], cache: &mut Cache<VideoFrame>, range: Range<Duration>) -> Frames<VideoFrame> {
         if let Some(frames) = cache.block(&range) {return frames}
         if let Some(frames) = cache.cover(&range, |frame| {
             frame.timestamp..frame.timestamp + frame.duration
@@ -302,7 +304,7 @@ impl CursorRead for Cursor {
         }
         self.revisions = revisions;
     }
-    fn audio_frames(&mut self, range: Range<Duration>, duration: Duration) -> Arc<Vec<Arc<AudioFrame>>> {
+    fn audio_frames(&mut self, range: Range<Duration>, duration: Duration) -> Frames<AudioFrame> {
         assert!(range.start <= range.end);
         assert!(!duration.is_zero());
         let Some(timeline) = self.audio.clone() else {return Arc::default()};
@@ -355,7 +357,7 @@ impl CursorRead for Cursor {
             return track.cache().lock().unwrap().find(&range, duration).unwrap_or(frames)
         }
     }
-    fn video_frames(&mut self, range: Range<Duration>) -> Arc<Vec<Arc<VideoFrame>>> {
+    fn video_frames(&mut self, range: Range<Duration>) -> Frames<VideoFrame> {
         assert!(range.start <= range.end);
         let Some(timeline) = self.video.clone() else {return Arc::default()};
         loop {
@@ -441,7 +443,7 @@ impl Reader {
         self.damaged = None;
         self.frames.clear();
     }
-    fn next<'a>(&mut self, clips: &'a [Clip], frame: &mut ffmpeg::Frame) -> Option<(Range<f64>, &'a Clip, Option<Range<f64>>)> {
+    fn next<'a>(&mut self, clips: &'a [Clip], frame: &mut ffmpeg::Frame) -> Option<FrameRead<'a>> {
         let mut corrupt = None;
         loop {
             if let Some((range, index, source)) = &mut self.damaged {

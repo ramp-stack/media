@@ -4,7 +4,7 @@
 
 ```toml
 [dependencies]
-media = { package = "media2", version = "0.1.0" }
+media = { package = "media2", version = "0.1.1" }
 ```
 
 `Media`, `Audio`, and `Video` read seekable sources and decode frames lazily. Their timelines support

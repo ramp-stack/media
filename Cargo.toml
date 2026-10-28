@@ -1,6 +1,6 @@
 [package]
 name = "media2"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["Caleb Couch <caleb@orange.me>"]
 description = "Owned audio, video, image, and playback primitives"

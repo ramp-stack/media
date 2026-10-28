@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::time::{Duration, Instant};
 
 use crate::decoder::FrameDecoder;
-use crate::{Audio, AudioFrame, Format, Video, VideoFrame};
+use crate::{Audio, AudioFrame, Format, Frames, Video, VideoFrame};
 
 #[derive(Clone)]
 pub enum Encoded {
@@ -77,8 +77,8 @@ pub trait CursorRead {
     fn playhead(&self) -> MutexGuard<'_, Playhead>;
     fn validate(&self, revisions: (u64, u64), audio: Range<Duration>, video: Range<Duration>) -> Option<MutexGuard<'_, Playhead>>;
     fn refresh(&mut self);
-    fn audio_frames(&mut self, range: Range<Duration>, duration: Duration) -> Arc<Vec<Arc<AudioFrame>>>;
-    fn video_frames(&mut self, range: Range<Duration>) -> Arc<Vec<Arc<VideoFrame>>>;
+    fn audio_frames(&mut self, range: Range<Duration>, duration: Duration) -> Frames<AudioFrame>;
+    fn video_frames(&mut self, range: Range<Duration>) -> Frames<VideoFrame>;
 }
 
 pub trait Track<F> {
@@ -426,14 +426,14 @@ impl<F> Clone for Timeline<F> {
 }
 
 pub struct Cache<F> {
-    decoded: VecDeque<(Range<Duration>, Arc<Vec<Arc<F>>>, usize)>,
-    snapshots: VecDeque<(Range<Duration>, Duration, Arc<Vec<Arc<F>>>, usize)>,
+    decoded: VecDeque<(Range<Duration>, Frames<F>, usize)>,
+    snapshots: VecDeque<(Range<Duration>, Duration, Frames<F>, usize)>,
 }
 impl<F> Cache<F> {
-    pub fn snapshots(&self) -> impl DoubleEndedIterator<Item = (&Range<Duration>, &Arc<Vec<Arc<F>>>)> {
+    pub fn snapshots(&self) -> impl DoubleEndedIterator<Item = (&Range<Duration>, &Frames<F>)> {
         self.snapshots.iter().map(|(range, _, frames, _)| (range, frames))
     }
-    pub fn find(&mut self, range: &Range<Duration>, chunk: Duration) -> Option<Arc<Vec<Arc<F>>>> {
+    pub fn find(&mut self, range: &Range<Duration>, chunk: Duration) -> Option<Frames<F>> {
         let index = self.snapshots.iter().position(|(query, duration, _, _)| {
             query == range && *duration == chunk
         })?;
@@ -442,14 +442,14 @@ impl<F> Cache<F> {
         self.snapshots.push_back(entry);
         Some(frames)
     }
-    pub fn block(&mut self, range: &Range<Duration>) -> Option<Arc<Vec<Arc<F>>>> {
+    pub fn block(&mut self, range: &Range<Duration>) -> Option<Frames<F>> {
         let index = self.decoded.iter().position(|(query, _, _)| query == range)?;
         let entry = self.decoded.remove(index).unwrap();
         let frames = entry.1.clone();
         self.decoded.push_back(entry);
         Some(frames)
     }
-    pub fn cover(&self, range: &Range<Duration>, span: impl Fn(&F) -> Range<Duration>) -> Option<Arc<Vec<Arc<F>>>> {
+    pub fn cover(&self, range: &Range<Duration>, span: impl Fn(&F) -> Range<Duration>) -> Option<Frames<F>> {
         let mut frames: Vec<_> = self.decoded.iter().map(|entry| &entry.1)
             .chain(self.snapshots.iter().map(|entry| &entry.2)).flat_map(|frames| frames.iter())
             .filter_map(|frame| {
@@ -477,13 +477,13 @@ impl<F> Cache<F> {
             .chain(self.snapshots.iter().map(|entry| &entry.2)).flat_map(|frames| frames.iter())
             .find(|frame| span(frame) == extent).cloned().unwrap_or(frame)
     }
-    pub fn cache_block(&mut self, range: Range<Duration>, frames: Arc<Vec<Arc<F>>>, bytes: usize) {
+    pub fn cache_block(&mut self, range: Range<Duration>, frames: Frames<F>, bytes: usize) {
         self.decoded.retain(|(query, _, _)| *query != range);
         if bytes > 128 * 1024 * 1024 {return}
         self.decoded.push_back((range, frames, bytes));
         self.trim();
     }
-    pub fn cache_snapshot(&mut self, range: Range<Duration>, chunk: Duration, frames: Arc<Vec<Arc<F>>>, bytes: usize) {
+    pub fn cache_snapshot(&mut self, range: Range<Duration>, chunk: Duration, frames: Frames<F>, bytes: usize) {
         self.snapshots.retain(|(query, duration, _, _)| *query != range || *duration != chunk);
         if bytes > 128 * 1024 * 1024 {return}
         self.snapshots.push_back((range, chunk, frames, bytes));
@@ -505,7 +505,7 @@ impl<F> Cache<F> {
     }
 
     fn new() -> Self {Self {decoded: VecDeque::new(), snapshots: VecDeque::new()}}
-    fn share_frames(&self, frames: Arc<Vec<Arc<F>>>, span: impl Fn(&F) -> Range<Duration>) -> Arc<Vec<Arc<F>>> {
+    fn share_frames(&self, frames: Frames<F>, span: impl Fn(&F) -> Range<Duration>) -> Frames<F> {
         let shared: Vec<_> = frames.iter().map(|frame| self.share(frame.clone(), &span)).collect();
         if shared.iter().zip(frames.iter()).all(|(left, right)| Arc::ptr_eq(left, right)) {frames}
         else {Arc::new(shared)}

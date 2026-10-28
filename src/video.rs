@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::media::{Clip, CursorRead, Export, Join, Timeline, Track};
-use crate::{Audio, Cursor, Encoder, Format, Image, Media, Player};
+use crate::{Audio, Cursor, Encoder, Format, Frames, Image, Media, Player};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct VideoFrame {
@@ -55,7 +55,7 @@ impl Video {
     /// Whole frames overlapping the half-open range. Later edits require a new range request.
     /// Damage up to 100 ms holds the last healthy image; otherwise it shows an opaque black image.
     /// Replacements remain flagged, including when the source file already records the damage.
-    pub fn frames(&self, range: Range<Duration>) -> Arc<Vec<Arc<VideoFrame>>> {
+    pub fn frames(&self, range: Range<Duration>) -> Frames<VideoFrame> {
         self.cursor().video_frames(range)
     }
     pub fn encode(&self, format: Format) -> Result<Encoder, String> {
